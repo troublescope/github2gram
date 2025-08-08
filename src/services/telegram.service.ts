@@ -42,8 +42,8 @@ export class TelegramService {
       const url = `${this.baseUrl}${botToken}/sendMessage`;
       const payload = {
         chat_id: chatId,
-        text: text,
-        parse_mode: options.parseMode || 'Markdown',
+        text,
+        parse_mode: 'HTML',
         disable_web_page_preview: options.disableWebPagePreview || false,
       };
 
@@ -59,6 +59,7 @@ export class TelegramService {
         return false;
       }
     } catch (error) {
+      console.log(error);
       this.logger.error(`Error sending Telegram message: ${error.message}`);
       return false;
     }

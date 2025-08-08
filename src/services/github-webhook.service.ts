@@ -96,16 +96,16 @@ export class GitHubWebhookService {
       pusher,
     } = data;
 
-    const header = `${pusher} just pushed to ${repositoryName}!\n\n`;
-    const branchInfo = `🌿 *Branch:* ${branchName}\n`;
-    const authorsInfo = `👥 *Authors:* ${authors.join(', ')}\n\n`;
+    const header = `<b>${pusher} just pushed to ${repositoryName}!</b>\n\n`;
+    const branchInfo = `🌿 <b>Branch:</b> ${branchName}\n`;
+    const authorsInfo = `👥 <b>Authors:</b> ${authors.join(', ')}\n\n`;
 
     let message = header + branchInfo + authorsInfo;
 
     if (commitMessages.length > 0) {
-      message += `📦 *Commits (${commitMessages.length})*\n`;
+      message += `📦 <b>Commits (${commitMessages.length})</b>\n`;
       commitMessages.slice(0, 5).forEach((msg) => {
-        const cleanMsg = msg.split('\n')[0]; // Take only first line of commit message
+        const cleanMsg = msg.split('\n')[0];
         const truncatedMsg =
           cleanMsg.length > 80 ? cleanMsg.substring(0, 77) + '...' : cleanMsg;
         message += `└─ ${truncatedMsg}\n`;
@@ -114,13 +114,13 @@ export class GitHubWebhookService {
       if (commitMessages.length > 5) {
         message += `└─ ...and ${commitMessages.length - 5} more\n`;
       }
-      message += '\n';
+      message += `\n`;
     }
 
     if (changedFiles.length > 0) {
       const fileCount = changedFiles.length;
       const fileWord = fileCount === 1 ? 'file' : 'files';
-      message += `🛠️ *Changed ${fileCount} ${fileWord}*\n`;
+      message += `🛠️ <b>Changed ${fileCount} ${fileWord}</b>\n`;
 
       changedFiles.slice(0, 5).forEach((file) => {
         message += `└─ ${file}\n`;
@@ -129,10 +129,10 @@ export class GitHubWebhookService {
       if (changedFiles.length > 5) {
         message += `└─ ...and ${changedFiles.length - 5} more\n`;
       }
-      message += '\n';
+      message += `\n`;
     }
 
-    message += `🔗 [View changes on GitHub](${compareUrl})`;
+    message += `🔗 <a href="${compareUrl}">View changes on GitHub</a>`;
 
     return message;
   }

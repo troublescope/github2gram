@@ -142,23 +142,20 @@ The bot sends formatted messages with:
 
 Example message:
 ```
-🚀 New push to my-org/my-repo
+jayremnt just pushed to my-org/my-repo
 
-📍 Branch: main
-👤 Pusher: john-doe
-👥 Authors: John Doe, Jane Smith
+🌿 Branch: master
+👥 Authors: jayremnt
 
-📝 Commits:
-1. Fix authentication bug
-2. Update documentation
-3. Add new feature
+📦 Commits (1)
+└─ feat: bla bla
 
-📁 Changed files:
-• + src/auth.ts
-• ~ src/config.ts
-• - old-file.js
+🛠️ Changed 3 file
+└─ + src/auth.ts
+└─ ~ src/config.ts
+└─ - old-file.js
 
-🔗 View changes
+🔗 View changes on GitHub
 ```
 
 ## Development
