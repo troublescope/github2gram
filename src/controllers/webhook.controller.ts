@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Logger,
   Post,
+  Get,
 } from '@nestjs/common';
 import { GitHubWebhookService } from '../services/github-webhook.service';
 import { TelegramService } from '../services/telegram.service';
@@ -24,11 +25,12 @@ export class WebhookController {
   @Post('github')
   @HttpCode(HttpStatus.OK)
   async handleGitHubWebhook(
-    @Body() payload: GitHubWebhookEvent,
+    @Body() payload: any,
     @Headers('x-hub-signature-256') signature: string,
-    @Headers('x-github-event') eventType: string
-  ): Promise<{ success: boolean; message: string }> {
-    this.logger.log(`Received GitHub webhook: ${eventType}`);
+    @Headers('x-github-event') eventType: string,
+    @Headers('x-github-delivery') delivery: string,
+  ): Promise<{ success: boolean; message: string; eventType?: string }> {
+    this.logger.log(`Received GitHub webhook: ${eventType} (delivery: ${delivery})`);
 
     // Verify webhook signature
     const rawBody = JSON.stringify(payload);
@@ -37,53 +39,121 @@ export class WebhookController {
       throw new BadRequestException('Invalid webhook signature');
     }
 
-    // Process the webhook event
-    const processedData =
-      this.githubWebhookService.processWebhookEvent(payload);
-
-    if (!processedData) {
-      this.logger.debug('Event filtered out or not a push event');
+    // Check if event type is supported
+    const supportedEvents = ['push', 'star', 'fork'];
+    if (!supportedEvents.includes(eventType)) {
+      this.logger.log(`Event type ${eventType} is not supported, ignoring`);
       return {
         success: true,
-        message: 'Event processed (filtered out)',
+        message: `Event ${eventType} is not supported`,
+        eventType,
       };
     }
 
-    // Format the message
-    const message =
-      this.githubWebhookService.formatWebhookMessage(processedData);
+    try {
+      // Process the webhook event
+      const processedData = this.githubWebhookService.processWebhookEvent(payload, eventType);
 
-    // Send to Telegram
-    const sent = await this.telegramService.sendWebhookNotification(
-      message,
-      processedData.repositoryName
-    );
+      if (!processedData) {
+        this.logger.debug('Event filtered out or invalid data');
+        return {
+          success: true,
+          message: 'Event processed (filtered out)',
+          eventType,
+        };
+      }
 
-    if (sent) {
-      this.logger.log(
-        `Webhook notification sent successfully for ${processedData.repositoryName}`
+      // Format the message
+      const message = this.githubWebhookService.formatWebhookMessage(processedData, eventType);
+
+      // Create inline keyboard
+      const keyboard = this.githubWebhookService.createInlineKeyboard(processedData, eventType);
+
+      // Get repository name for routing
+      const repositoryName = this.getRepositoryName(processedData);
+
+      // Send to Telegram with buttons
+      const sent = await this.telegramService.sendWebhookNotification(
+        message,
+        repositoryName,
+        keyboard
       );
-      return {
-        success: true,
-        message: 'Webhook processed and notification sent',
-      };
-    } else {
-      this.logger.error(
-        `Failed to send webhook notification for ${processedData.repositoryName}`
-      );
+
+      if (sent) {
+        this.logger.log(
+          `${eventType} notification sent successfully for ${repositoryName}`
+        );
+        return {
+          success: true,
+          message: `${eventType} event processed and notification sent`,
+          eventType,
+        };
+      } else {
+        this.logger.error(
+          `Failed to send ${eventType} notification for ${repositoryName}`
+        );
+        return {
+          success: false,
+          message: `${eventType} event processed but notification failed`,
+          eventType,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error processing ${eventType} event:`, error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  async healthCheck(): Promise<{ 
+    status: string; 
+    timestamp: string; 
+    telegram: boolean;
+    supportedEvents: string[];
+  }> {
+    const telegramStatus = await this.telegramService.testConnection();
+    
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      telegram: telegramStatus,
+      supportedEvents: ['push', 'star', 'fork'],
+    };
+  }
+
+  @Post('test')
+  @HttpCode(HttpStatus.OK)
+  async testEndpoint(
+    @Body() body: { chatId?: string } = {}
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const sent = await this.telegramService.sendTestMessage(body.chatId);
+      
+      if (sent) {
+        return {
+          success: true,
+          message: 'Test message sent successfully with buttons',
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Failed to send test message',
+        };
+      }
+    } catch (error) {
+      this.logger.error('Test endpoint error:', error);
       return {
         success: false,
-        message: 'Webhook processed but notification failed',
+        message: `Test failed: ${error.message}`,
       };
     }
   }
 
-  @Post('health')
-  @HttpCode(HttpStatus.OK)
-  async healthCheck(): Promise<{ status: string; timestamp: string }> {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    };
+  /**
+   * Extract repository name from processed data
+   */
+  private getRepositoryName(data: any): string {
+    return data.repositoryName || 'unknown';
   }
 }

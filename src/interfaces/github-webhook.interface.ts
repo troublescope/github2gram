@@ -15,6 +15,21 @@ export interface GitHubWebhookEvent {
   head_commit: GitHubCommit | null;
 }
 
+// Star event interface
+export interface GitHubStarEvent {
+  action: 'created' | 'deleted';
+  starred_at?: string;
+  repository: GitHubRepository;
+  sender: GitHubSender;
+}
+
+// Fork event interface
+export interface GitHubForkEvent {
+  forkee: GitHubRepository;
+  repository: GitHubRepository;
+  sender: GitHubSender;
+}
+
 export interface GitHubRepository {
   id: number;
   node_id: string;
@@ -22,6 +37,7 @@ export interface GitHubRepository {
   full_name: string;
   private: boolean;
   owner: GitHubOwner;
+  html_url: string;
   description: string | null;
   fork: boolean;
   created_at: string;
@@ -149,4 +165,15 @@ export interface GitHubCommitAuthor {
   name: string;
   email: string;
   username: string;
+}
+
+// Telegram inline keyboard interfaces
+export interface TelegramInlineKeyboard {
+  inline_keyboard: Array<Array<TelegramInlineKeyboardButton>>;
+}
+
+export interface TelegramInlineKeyboardButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
 }
