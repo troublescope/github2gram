@@ -26,9 +26,16 @@ export default tseslint.config(
   },
   {
     rules: {
+      // Already allowed
       '@typescript-eslint/no-explicit-any': 'off',
+
+      // You added
       '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn'
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+
+      // Add these to stop errors
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
 );

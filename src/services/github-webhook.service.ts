@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+// Consider replacing with @octokit/webhooks-types for better safety
 import { GitHubWebhookEvent } from '../interfaces/github-webhook.interface';
 
 export interface ProcessedWebhookData {
@@ -36,15 +37,24 @@ export interface ProcessedForkData {
   timestamp: string;
 }
 
+type ProcessedEvent =
+  | ProcessedWebhookData
+  | ProcessedStarData
+  | ProcessedForkData;
+
 @Injectable()
 export class GitHubWebhookService {
   private readonly logger = new Logger(GitHubWebhookService.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Verify GitHub webhook signature
+   * Helper get repo tag (#repo-name)
    */
+  private getRepoTag(repositoryName: string): string {
+    return `#${repositoryName.split('/')[1] ?? repositoryName}`;
+  }
+
   verifySignature(payload: string, signature: string): boolean {
     const secret = this.configService.get<string>('github.webhookSecret');
     if (!secret) {
@@ -57,51 +67,52 @@ export class GitHubWebhookService {
       .update(payload)
       .digest('hex')}`;
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
-  }
-
-  /**
-   * Process webhook events based on event type
-   */
-  processWebhookEvent(event: any, eventType: string): ProcessedWebhookData | ProcessedStarData | ProcessedForkData | null {
-    switch (eventType) {
-      case 'push':
-        return this.processPushEvent(event);
-      case 'star':
-        return this.processStarEvent(event);
-      case 'fork':
-        return this.processForkEvent(event);
-      default:
-        this.logger.debug(`Unsupported event type: ${eventType}`);
-        return null;
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      );
+    } catch (err) {
+      this.logger.error('Signature verification failed', err as Error);
+      return false;
     }
   }
 
-  /**
-   * Process push events
-   */
-  private processPushEvent(event: GitHubWebhookEvent): ProcessedWebhookData | null {
-    // Only handle push events
+  processWebhookEvent(
+    event: unknown,
+    eventType: string
+  ): ProcessedEvent | null {
+    switch (eventType) {
+      case 'push': {
+        return this.processPushEvent(event as GitHubWebhookEvent);
+      }
+      case 'star': {
+        return this.processStarEvent(event);
+      }
+      case 'fork': {
+        return this.processForkEvent(event);
+      }
+      default: {
+        this.logger.debug(`Unsupported event type: ${eventType}`);
+        return null;
+      }
+    }
+  }
+
+  private processPushEvent(
+    event: GitHubWebhookEvent
+  ): ProcessedWebhookData | null {
     if (!this.isPushEvent(event)) {
       this.logger.debug('Skipping non-push event');
       return null;
     }
 
-    // Extract branch name from ref (e.g., "refs/heads/main" -> "main")
     const branchName = event.ref.replace('refs/heads/', '');
-
-    // Extract commit messages
     const commitMessages = event.commits.map((commit) => commit.message);
-
-    // Extract unique authors
     const authors = [
       ...new Set(event.commits.map((commit) => commit.author.name)),
     ];
 
-    // Extract all changed files
     const changedFiles = new Set<string>();
     event.commits.forEach((commit) => {
       commit.added.forEach((file) => changedFiles.add(`+ ${file}`));
@@ -122,11 +133,8 @@ export class GitHubWebhookService {
     };
   }
 
-  /**
-   * Process star events
-   */
   private processStarEvent(event: any): ProcessedStarData | null {
-    if (!event.action || !event.repository || !event.sender) {
+    if (!event?.action || !event?.repository || !event?.sender) {
       this.logger.debug('Invalid star event data');
       return null;
     }
@@ -142,11 +150,8 @@ export class GitHubWebhookService {
     };
   }
 
-  /**
-   * Process fork events
-   */
   private processForkEvent(event: any): ProcessedForkData | null {
-    if (!event.forkee || !event.repository || !event.sender) {
+    if (!event?.forkee || !event?.repository || !event?.sender) {
       this.logger.debug('Invalid fork event data');
       return null;
     }
@@ -163,10 +168,7 @@ export class GitHubWebhookService {
     };
   }
 
-  /**
-   * Format webhook data into a readable message based on event type
-   */
-  formatWebhookMessage(data: ProcessedWebhookData | ProcessedStarData | ProcessedForkData, eventType: string): string {
+  formatWebhookMessage(data: ProcessedEvent, eventType: string): string {
     switch (eventType) {
       case 'push':
         return this.formatPushMessage(data as ProcessedWebhookData);
@@ -179,73 +181,50 @@ export class GitHubWebhookService {
     }
   }
 
-  /**
-   * Create inline keyboard based on event type
-   */
-  createInlineKeyboard(data: ProcessedWebhookData | ProcessedStarData | ProcessedForkData, eventType: string): any {
+  createInlineKeyboard(
+    data: ProcessedEvent,
+    eventType: string
+  ): Record<string, unknown> | null {
     switch (eventType) {
-      case 'push':
+      case 'push': {
         const pushData = data as ProcessedWebhookData;
         return {
           inline_keyboard: [
             [
-              {
-                text: '🔍 View Changes',
-                url: pushData.compareUrl
-              },
-              {
-                text: '📚 Repository',
-                url: pushData.repositoryUrl
-              }
-            ]
-          ]
+              { text: '🔍 Changes', url: pushData.compareUrl },
+              { text: '📚 Repository', url: pushData.repositoryUrl },
+            ],
+          ],
         };
-      case 'star':
+      }
+      case 'star': {
         const starData = data as ProcessedStarData;
         return {
           inline_keyboard: [
             [
-              {
-                text: '📚 Repository',
-                url: starData.repositoryUrl
-              },
-              {
-                text: '👤 User Profile',
-                url: starData.userUrl
-              }
-            ]
-          ]
+              { text: '📚 Repository', url: starData.repositoryUrl },
+              { text: '👤 Profile', url: starData.userUrl },
+            ],
+          ],
         };
-      case 'fork':
+      }
+      case 'fork': {
         const forkData = data as ProcessedForkData;
         return {
           inline_keyboard: [
             [
-              {
-                text: '📚 Original Repo',
-                url: forkData.repositoryUrl
-              },
-              {
-                text: '🍴 Fork',
-                url: forkData.forkUrl
-              }
+              { text: '📚 Original', url: forkData.repositoryUrl },
+              { text: '🍴 Fork', url: forkData.forkUrl },
             ],
-            [
-              {
-                text: '👤 User Profile',
-                url: forkData.userUrl
-              }
-            ]
-          ]
+            [{ text: '👤 Profile', url: forkData.userUrl }],
+          ],
         };
+      }
       default:
         return null;
     }
   }
 
-  /**
-   * Format push message
-   */
   private formatPushMessage(data: ProcessedWebhookData): string {
     const {
       repositoryName,
@@ -256,7 +235,8 @@ export class GitHubWebhookService {
       pusher,
     } = data;
 
-    const header = `🚀 <b>${pusher} just pushed to ${repositoryName}</b>\n\n`;
+    const repoTag = this.getRepoTag(repositoryName);
+    const header = `🚀 <b>${pusher}</b> pushed to <b>${repoTag}</b>\n\n`;
     const branchInfo = `🌿 <b>Branch:</b> <code>${branchName}</code>\n`;
     const authorsInfo = `👥 <b>Authors:</b> ${authors.join(', ')}\n\n`;
 
@@ -267,7 +247,7 @@ export class GitHubWebhookService {
       commitMessages.slice(0, 5).forEach((msg) => {
         const cleanMsg = msg.split('\n')[0];
         const truncatedMsg =
-          cleanMsg.length > 80 ? cleanMsg.substring(0, 77) + '...' : cleanMsg;
+          cleanMsg.length > 80 ? `${cleanMsg.substring(0, 77)}...` : cleanMsg;
         message += `└─ ${truncatedMsg}\n`;
       });
 
@@ -294,34 +274,21 @@ export class GitHubWebhookService {
     return message;
   }
 
-  /**
-   * Format star message
-   */
   private formatStarMessage(data: ProcessedStarData): string {
     const emoji = data.action === 'created' ? '⭐' : '💫';
     const actionText = data.action === 'created' ? 'starred' : 'unstarred';
-    
-    return `${emoji} <b>${data.userLogin} ${actionText} ${data.repositoryName}</b>
+    const repoTag = this.getRepoTag(data.repositoryName);
 
-📊 <b>Total Stars:</b> ${data.starCount}
-👤 <b>User:</b> @${data.userLogin}`;
+    return `${emoji} <b>${data.userLogin}</b> ${actionText} <b>${repoTag}</b>\n\n📊 <b>Total Stars:</b> ${data.starCount}`;
   }
 
-  /**
-   * Format fork message
-   */
   private formatForkMessage(data: ProcessedForkData): string {
-    return `🍴 <b>${data.userLogin} forked ${data.repositoryName}</b>
+    const repoTag = this.getRepoTag(data.repositoryName);
 
-🔗 <b>New Fork:</b> ${data.forkName}
-📊 <b>Total Forks:</b> ${data.forkCount}
-👤 <b>User:</b> @${data.userLogin}`;
+    return `🍴 <b>${data.userLogin}</b> forked <b>${repoTag}</b>\n\n📊 <b>Total Forks:</b> ${data.forkCount}`;
   }
 
-  /**
-   * Check if the event is a push event
-   */
-  private isPushEvent(event: any): boolean {
-    return event.ref && event.ref.startsWith('refs/heads/');
+  private isPushEvent(event: Partial<GitHubWebhookEvent>): boolean {
+    return Boolean(event.ref && event.ref.startsWith('refs/heads/'));
   }
 }

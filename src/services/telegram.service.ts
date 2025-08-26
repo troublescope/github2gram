@@ -172,11 +172,11 @@ export class TelegramService {
         [
           {
             text: '🔗 GitHub Repository',
-            url: 'https://github.com/jayremnt/gh2t'
+            url: 'https://github.com/troublescope/github2gram'
           },
           {
             text: '📚 Documentation',
-            url: 'https://github.com/jayremnt/gh2t#readme'
+            url: 'https://github.com/jayremnt/github2gram#readme'
           }
         ]
       ]

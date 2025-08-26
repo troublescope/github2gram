@@ -37,15 +37,15 @@ describe('GitHubWebhookService', () => {
     it('should verify valid signature', () => {
       const payload = '{"test": "data"}';
       const signature = 'sha256=1234567890abcdef';
-      
+
       // Mock the crypto function to return a predictable result
       jest.spyOn(require('crypto'), 'createHmac').mockReturnValue({
         update: jest.fn().mockReturnThis(),
         digest: jest.fn().mockReturnValue('1234567890abcdef'),
       });
-      
+
       jest.spyOn(require('crypto'), 'timingSafeEqual').mockReturnValue(true);
-      
+
       const result = service.verifySignature(payload, signature);
       expect(result).toBe(true);
     });
@@ -72,14 +72,19 @@ describe('GitHubWebhookService', () => {
             url: 'https://api.github.com/users/test-user',
             html_url: 'https://github.com/test-user',
             followers_url: 'https://api.github.com/users/test-user/followers',
-            following_url: 'https://api.github.com/users/test-user/following{/other_user}',
+            following_url:
+              'https://api.github.com/users/test-user/following{/other_user}',
             gists_url: 'https://api.github.com/users/test-user/gists{/gist_id}',
-            starred_url: 'https://api.github.com/users/test-user/starred{/owner}{/repo}',
-            subscriptions_url: 'https://api.github.com/users/test-user/subscriptions',
+            starred_url:
+              'https://api.github.com/users/test-user/starred{/owner}{/repo}',
+            subscriptions_url:
+              'https://api.github.com/users/test-user/subscriptions',
             organizations_url: 'https://api.github.com/users/test-user/orgs',
             repos_url: 'https://api.github.com/users/test-user/repos',
-            events_url: 'https://api.github.com/users/test-user/events{/privacy}',
-            received_events_url: 'https://api.github.com/users/test-user/received_events',
+            events_url:
+              'https://api.github.com/users/test-user/events{/privacy}',
+            received_events_url:
+              'https://api.github.com/users/test-user/received_events',
             type: 'User',
             site_admin: false,
           },
@@ -133,14 +138,18 @@ describe('GitHubWebhookService', () => {
           url: 'https://api.github.com/users/test-user',
           html_url: 'https://github.com/test-user',
           followers_url: 'https://api.github.com/users/test-user/followers',
-          following_url: 'https://api.github.com/users/test-user/following{/other_user}',
+          following_url:
+            'https://api.github.com/users/test-user/following{/other_user}',
           gists_url: 'https://api.github.com/users/test-user/gists{/gist_id}',
-          starred_url: 'https://api.github.com/users/test-user/starred{/owner}{/repo}',
-          subscriptions_url: 'https://api.github.com/users/test-user/subscriptions',
+          starred_url:
+            'https://api.github.com/users/test-user/starred{/owner}{/repo}',
+          subscriptions_url:
+            'https://api.github.com/users/test-user/subscriptions',
           organizations_url: 'https://api.github.com/users/test-user/orgs',
           repos_url: 'https://api.github.com/users/test-user/repos',
           events_url: 'https://api.github.com/users/test-user/events{/privacy}',
-          received_events_url: 'https://api.github.com/users/test-user/received_events',
+          received_events_url:
+            'https://api.github.com/users/test-user/received_events',
           type: 'User',
           site_admin: false,
         },
@@ -148,7 +157,8 @@ describe('GitHubWebhookService', () => {
         deleted: false,
         forced: false,
         base_ref: null,
-        compare: 'https://github.com/test-org/test-repo/compare/abc123...def456',
+        compare:
+          'https://github.com/test-org/test-repo/compare/abc123...def456',
         commits: [
           {
             id: 'def456',
@@ -196,7 +206,7 @@ describe('GitHubWebhookService', () => {
       };
 
       const result = service.processWebhookEvent(mockEvent);
-      
+
       expect(result).toBeDefined();
       expect(result?.repositoryName).toBe('test-org/test-repo');
       expect(result?.branchName).toBe('main');
@@ -228,12 +238,13 @@ describe('GitHubWebhookService', () => {
         authors: ['Test User'],
         timestamp: '2023-01-01T00:00:00Z',
         changedFiles: ['+ new-file.txt', '- old-file.txt'],
-        compareUrl: 'https://github.com/test-org/test-repo/compare/abc123...def456',
+        compareUrl:
+          'https://github.com/test-org/test-repo/compare/abc123...def456',
         pusher: 'test-user',
       };
 
       const result = service.formatWebhookMessage(mockData);
-      
+
       expect(result).toContain('🚀 *New push to test-org/test-repo*');
       expect(result).toContain('📍 *Branch:* `main`');
       expect(result).toContain('👤 *Pusher:* test-user');
@@ -246,4 +257,4 @@ describe('GitHubWebhookService', () => {
       expect(result).toContain('🔗 [View changes]');
     });
   });
-}); 
+});
