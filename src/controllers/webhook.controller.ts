@@ -28,9 +28,11 @@ export class WebhookController {
     @Body() payload: any,
     @Headers('x-hub-signature-256') signature: string,
     @Headers('x-github-event') eventType: string,
-    @Headers('x-github-delivery') delivery: string,
+    @Headers('x-github-delivery') delivery: string
   ): Promise<{ success: boolean; message: string; eventType?: string }> {
-    this.logger.log(`Received GitHub webhook: ${eventType} (delivery: ${delivery})`);
+    this.logger.log(
+      `Received GitHub webhook: ${eventType} (delivery: ${delivery})`
+    );
 
     // Verify webhook signature
     const rawBody = JSON.stringify(payload);
@@ -52,7 +54,10 @@ export class WebhookController {
 
     try {
       // Process the webhook event
-      const processedData = this.githubWebhookService.processWebhookEvent(payload, eventType);
+      const processedData = this.githubWebhookService.processWebhookEvent(
+        payload,
+        eventType
+      );
 
       if (!processedData) {
         this.logger.debug('Event filtered out or invalid data');
@@ -64,10 +69,16 @@ export class WebhookController {
       }
 
       // Format the message
-      const message = this.githubWebhookService.formatWebhookMessage(processedData, eventType);
+      const message = this.githubWebhookService.formatWebhookMessage(
+        processedData,
+        eventType
+      );
 
       // Create inline keyboard
-      const keyboard = this.githubWebhookService.createInlineKeyboard(processedData, eventType);
+      const keyboard = this.githubWebhookService.createInlineKeyboard(
+        processedData,
+        eventType
+      );
 
       // Get repository name for routing
       const repositoryName = this.getRepositoryName(processedData);
@@ -106,14 +117,14 @@ export class WebhookController {
 
   @Get('health')
   @HttpCode(HttpStatus.OK)
-  async healthCheck(): Promise<{ 
-    status: string; 
-    timestamp: string; 
+  async healthCheck(): Promise<{
+    status: string;
+    timestamp: string;
     telegram: boolean;
     supportedEvents: string[];
   }> {
     const telegramStatus = await this.telegramService.testConnection();
-    
+
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -129,7 +140,7 @@ export class WebhookController {
   ): Promise<{ success: boolean; message: string }> {
     try {
       const sent = await this.telegramService.sendTestMessage(body.chatId);
-      
+
       if (sent) {
         return {
           success: true,

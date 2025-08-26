@@ -110,16 +110,16 @@ export class TelegramService {
 
     if (repoChatId) {
       this.logger.log(`Sending to repository-specific chat: ${repoChatId}`);
-      return await this.sendMessage(message, { 
-        chatId: repoChatId, 
+      return await this.sendMessage(message, {
+        chatId: repoChatId,
         replyMarkup: inlineKeyboard,
-        disableWebPagePreview: true 
+        disableWebPagePreview: true,
       });
     } else {
       this.logger.log('Using default chat ID');
-      return await this.sendMessage(message, { 
+      return await this.sendMessage(message, {
         replyMarkup: inlineKeyboard,
-        disableWebPagePreview: true 
+        disableWebPagePreview: true,
       });
     }
   }
@@ -129,7 +129,7 @@ export class TelegramService {
    */
   async testConnection(): Promise<boolean> {
     const botToken = this.configService.get<string>('telegram.botToken');
-    
+
     if (!botToken) {
       this.logger.error('Telegram bot token not configured');
       return false;
@@ -138,9 +138,11 @@ export class TelegramService {
     try {
       const url = `${this.baseUrl}${botToken}/getMe`;
       const response: AxiosResponse = await axios.get(url);
-      
+
       if (response.data.ok) {
-        this.logger.log(`Bot connected successfully: ${response.data.result.username}`);
+        this.logger.log(
+          `Bot connected successfully: ${response.data.result.username}`
+        );
         return true;
       } else {
         this.logger.error('Bot connection test failed:', response.data);
@@ -172,22 +174,23 @@ export class TelegramService {
         [
           {
             text: '🔗 GitHub Repository',
-            url: 'https://github.com/troublescope/github2gram'
+            url: 'https://github.com/troublescope/github2gram',
           },
           {
             text: '📚 Documentation',
-            url: 'https://github.com/jayremnt/github2gram#readme'
-          }
-        ]
-      ]
+            url: 'https://github.com/jayremnt/github2gram#readme',
+          },
+        ],
+      ],
     };
 
-    const targetChatId = chatId || this.configService.get<string>('telegram.defaultChatId');
-    
+    const targetChatId =
+      chatId || this.configService.get<string>('telegram.defaultChatId');
+
     return this.sendMessage(testMessage, {
       chatId: targetChatId,
       replyMarkup: keyboard,
-      disableWebPagePreview: true
+      disableWebPagePreview: true,
     });
   }
 }
