@@ -42,7 +42,7 @@ export class WebhookController {
     }
 
     // Check if event type is supported
-    const supportedEvents = ['push', 'star', 'fork'];
+    const supportedEvents = ['push', 'star', 'fork', 'issues', 'pull_request'];
     if (!supportedEvents.includes(eventType)) {
       this.logger.log(`Event type ${eventType} is not supported, ignoring`);
       return {
@@ -129,7 +129,7 @@ export class WebhookController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       telegram: telegramStatus,
-      supportedEvents: ['push', 'star', 'fork'],
+      supportedEvents: ['push', 'star', 'fork', 'issues', 'pull_request'],
     };
   }
 

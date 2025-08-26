@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 // Consider replacing with @octokit/webhooks-types for better safety
-import { GitHubWebhookEvent } from '../interfaces/github-webhook.interface';
+import {
+  GitHubWebhookEvent,
+  GitHubIssueEvent,
+  GitHubPullRequestEvent,
+} from '../interfaces/github-webhook.interface';
 
 export interface ProcessedWebhookData {
   repositoryName: string;
@@ -37,10 +41,49 @@ export interface ProcessedForkData {
   timestamp: string;
 }
 
+export interface ProcessedIssueData {
+  repositoryName: string;
+  repositoryUrl: string;
+  issueNumber: number;
+  issueTitle: string;
+  issueUrl: string;
+  action: string;
+  userLogin: string;
+  userUrl: string;
+  timestamp: string;
+  labels: string[];
+  assignees: string[];
+  body?: string;
+}
+
+export interface ProcessedPullRequestData {
+  repositoryName: string;
+  repositoryUrl: string;
+  pullRequestNumber: number;
+  pullRequestTitle: string;
+  pullRequestUrl: string;
+  action: string;
+  userLogin: string;
+  userUrl: string;
+  timestamp: string;
+  labels: string[];
+  assignees: string[];
+  body?: string;
+  baseBranch: string;
+  headBranch: string;
+  isDraft: boolean;
+  isMerged?: boolean;
+  changedFiles?: number;
+  additions?: number;
+  deletions?: number;
+}
+
 type ProcessedEvent =
   | ProcessedWebhookData
   | ProcessedStarData
-  | ProcessedForkData;
+  | ProcessedForkData
+  | ProcessedIssueData
+  | ProcessedPullRequestData;
 
 @Injectable()
 export class GitHubWebhookService {
@@ -91,6 +134,12 @@ export class GitHubWebhookService {
       }
       case 'fork': {
         return this.processForkEvent(event);
+      }
+      case 'issues': {
+        return this.processIssueEvent(event as GitHubIssueEvent);
+      }
+      case 'pull_request': {
+        return this.processPullRequestEvent(event as GitHubPullRequestEvent);
       }
       default: {
         this.logger.debug(`Unsupported event type: ${eventType}`);
@@ -168,6 +217,69 @@ export class GitHubWebhookService {
     };
   }
 
+  private processIssueEvent(event: GitHubIssueEvent): ProcessedIssueData | null {
+    if (!event?.action || !event?.issue || !event?.repository || !event?.sender) {
+      this.logger.debug('Invalid issue event data');
+      return null;
+    }
+
+    // Only process open and close actions
+    if (!['opened', 'closed', 'reopened'].includes(event.action)) {
+      this.logger.debug(`Skipping issue action: ${event.action}`);
+      return null;
+    }
+
+    return {
+      repositoryName: event.repository.full_name,
+      repositoryUrl: event.repository.html_url,
+      issueNumber: event.issue.number,
+      issueTitle: event.issue.title,
+      issueUrl: event.issue.html_url,
+      action: event.action,
+      userLogin: event.sender.login,
+      userUrl: event.sender.html_url,
+      timestamp: new Date().toISOString(),
+      labels: event.issue.labels.map(label => label.name),
+      assignees: event.issue.assignees?.map(assignee => assignee.login) || [],
+      body: event.issue.body?.substring(0, 200), // Limit body preview
+    };
+  }
+
+  private processPullRequestEvent(event: GitHubPullRequestEvent): ProcessedPullRequestData | null {
+    if (!event?.action || !event?.pull_request || !event?.repository || !event?.sender) {
+      this.logger.debug('Invalid pull request event data');
+      return null;
+    }
+
+    // Only process open, close, and reopen actions
+    if (!['opened', 'closed', 'reopened'].includes(event.action)) {
+      this.logger.debug(`Skipping pull request action: ${event.action}`);
+      return null;
+    }
+
+    return {
+      repositoryName: event.repository.full_name,
+      repositoryUrl: event.repository.html_url,
+      pullRequestNumber: event.pull_request.number,
+      pullRequestTitle: event.pull_request.title,
+      pullRequestUrl: event.pull_request.html_url,
+      action: event.action,
+      userLogin: event.sender.login,
+      userUrl: event.sender.html_url,
+      timestamp: new Date().toISOString(),
+      labels: event.pull_request.labels.map(label => label.name),
+      assignees: event.pull_request.assignees?.map(assignee => assignee.login) || [],
+      body: event.pull_request.body?.substring(0, 200), // Limit body preview
+      baseBranch: event.pull_request.base.ref,
+      headBranch: event.pull_request.head.ref,
+      isDraft: event.pull_request.draft,
+      isMerged: event.pull_request.merged,
+      changedFiles: event.pull_request.changed_files,
+      additions: event.pull_request.additions,
+      deletions: event.pull_request.deletions,
+    };
+  }
+
   formatWebhookMessage(data: ProcessedEvent, eventType: string): string {
     switch (eventType) {
       case 'push':
@@ -176,6 +288,10 @@ export class GitHubWebhookService {
         return this.formatStarMessage(data as ProcessedStarData);
       case 'fork':
         return this.formatForkMessage(data as ProcessedForkData);
+      case 'issues':
+        return this.formatIssueMessage(data as ProcessedIssueData);
+      case 'pull_request':
+        return this.formatPullRequestMessage(data as ProcessedPullRequestData);
       default:
         return 'Unknown event type';
     }
@@ -217,6 +333,30 @@ export class GitHubWebhookService {
               { text: '🍴 Fork', url: forkData.forkUrl },
             ],
             [{ text: '👤 Profile', url: forkData.userUrl }],
+          ],
+        };
+      }
+      case 'issues': {
+        const issueData = data as ProcessedIssueData;
+        return {
+          inline_keyboard: [
+            [
+              { text: '🐛 Issue', url: issueData.issueUrl },
+              { text: '📚 Repository', url: issueData.repositoryUrl },
+            ],
+            [{ text: '👤 Profile', url: issueData.userUrl }],
+          ],
+        };
+      }
+      case 'pull_request': {
+        const prData = data as ProcessedPullRequestData;
+        return {
+          inline_keyboard: [
+            [
+              { text: '🔀 Pull Request', url: prData.pullRequestUrl },
+              { text: '📚 Repository', url: prData.repositoryUrl },
+            ],
+            [{ text: '👤 Profile', url: prData.userUrl }],
           ],
         };
       }
@@ -286,6 +426,129 @@ export class GitHubWebhookService {
     const repoTag = this.getRepoTag(data.repositoryName);
 
     return `🍴 <b>${data.userLogin}</b> forked <b>${repoTag}</b>\n\n📊 <b>Total Forks:</b> ${data.forkCount}`;
+  }
+
+  private formatIssueMessage(data: ProcessedIssueData): string {
+    const repoTag = this.getRepoTag(data.repositoryName);
+    const emoji = this.getIssueEmoji(data.action);
+    const actionText = this.getIssueActionText(data.action);
+
+    let message = `${emoji} <b>${data.userLogin}</b> ${actionText} issue <b>#${data.issueNumber}</b> in <b>${repoTag}</b>\n\n`;
+    message += `📋 <b>Title:</b> ${data.issueTitle}\n`;
+
+    if (data.labels.length > 0) {
+      message += `🏷️ <b>Labels:</b> ${data.labels.map(label => `<code>${label}</code>`).join(', ')}\n`;
+    }
+
+    if (data.assignees.length > 0) {
+      message += `👤 <b>Assignees:</b> ${data.assignees.join(', ')}\n`;
+    }
+
+    if (data.body && data.body.trim()) {
+      const preview = data.body.length > 150 ? `${data.body.substring(0, 147)}...` : data.body;
+      message += `\n💬 <i>${preview}</i>`;
+    }
+
+    return message;
+  }
+
+  private formatPullRequestMessage(data: ProcessedPullRequestData): string {
+    const repoTag = this.getRepoTag(data.repositoryName);
+    const emoji = this.getPullRequestEmoji(data.action, data.isMerged, data.isDraft);
+    const actionText = this.getPullRequestActionText(data.action, data.isMerged);
+
+    let message = `${emoji} <b>${data.userLogin}</b> ${actionText} pull request <b>#${data.pullRequestNumber}</b> in <b>${repoTag}</b>\n\n`;
+    message += `📋 <b>Title:</b> ${data.pullRequestTitle}\n`;
+    message += `🌿 <b>Branch:</b> <code>${data.headBranch}</code> → <code>${data.baseBranch}</code>\n`;
+
+    if (data.isDraft) {
+      message += `📝 <b>Status:</b> Draft\n`;
+    }
+
+    if (data.labels.length > 0) {
+      message += `🏷️ <b>Labels:</b> ${data.labels.map(label => `<code>${label}</code>`).join(', ')}\n`;
+    }
+
+    if (data.assignees.length > 0) {
+      message += `👤 <b>Assignees:</b> ${data.assignees.join(', ')}\n`;
+    }
+
+    if (data.action === 'opened' || data.action === 'reopened') {
+      if (data.changedFiles) {
+        message += `📊 <b>Changes:</b> ${data.changedFiles} files`;
+        if (data.additions || data.deletions) {
+          message += ` (+${data.additions || 0}/-${data.deletions || 0})`;
+        }
+        message += `\n`;
+      }
+    }
+
+    if (data.body && data.body.trim()) {
+      const preview = data.body.length > 150 ? `${data.body.substring(0, 147)}...` : data.body;
+      message += `\n💬 <i>${preview}</i>`;
+    }
+
+    return message;
+  }
+
+  private getIssueEmoji(action: string): string {
+    switch (action) {
+      case 'opened':
+        return '🐛';
+      case 'closed':
+        return '✅';
+      case 'reopened':
+        return '🔄';
+      default:
+        return '📋';
+    }
+  }
+
+  private getIssueActionText(action: string): string {
+    switch (action) {
+      case 'opened':
+        return 'opened';
+      case 'closed':
+        return 'closed';
+      case 'reopened':
+        return 'reopened';
+      default:
+        return action;
+    }
+  }
+
+  private getPullRequestEmoji(action: string, isMerged?: boolean, isDraft?: boolean): string {
+    if (action === 'closed' && isMerged) {
+      return '🎉';
+    }
+    
+    switch (action) {
+      case 'opened':
+        return isDraft ? '📝' : '🔀';
+      case 'closed':
+        return '❌';
+      case 'reopened':
+        return '🔄';
+      default:
+        return '🔀';
+    }
+  }
+
+  private getPullRequestActionText(action: string, isMerged?: boolean): string {
+    if (action === 'closed' && isMerged) {
+      return 'merged';
+    }
+    
+    switch (action) {
+      case 'opened':
+        return 'opened';
+      case 'closed':
+        return 'closed';
+      case 'reopened':
+        return 'reopened';
+      default:
+        return action;
+    }
   }
 
   private isPushEvent(event: Partial<GitHubWebhookEvent>): boolean {

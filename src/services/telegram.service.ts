@@ -154,7 +154,7 @@ export class TelegramService {
     }
   }
 
-  /**
+/**
    * Send a test message with buttons
    */
   async sendTestMessage(chatId?: string): Promise<boolean> {
@@ -167,7 +167,9 @@ export class TelegramService {
 🎯 <b>Supported Events:</b>
 • 🚀 Push notifications
 • ⭐ Star/unstar events  
-• 🍴 Fork events`;
+• 🍴 Fork events
+• 🐛 Issue open/close/reopen
+• 🔀 Pull request open/close/reopen`;
 
     const keyboard = {
       inline_keyboard: [
@@ -178,7 +180,7 @@ export class TelegramService {
           },
           {
             text: '📚 Documentation',
-            url: 'https://github.com/jayremnt/github2gram#readme',
+            url: 'https://github.com/troublescope/github2gram#readme',
           },
         ],
       ],
